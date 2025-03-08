@@ -1,103 +1,248 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useEffect, useMemo } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SearchBar } from "@/components/search-bar";
+import { LanguageFilter } from "@/components/language-filter";
+import { SnippetForm } from "@/components/snippet-form";
+import { SnippetList } from "@/components/snippet-list";
+import { Snippet } from "@/types";
+import {
+  getSnippets,
+  addSnippet,
+  updateSnippet,
+  deleteSnippet,
+  searchSnippets,
+  filterSnippetsByLanguage,
+  exportSnippets,
+} from "@/lib/storage";
+import { PlusCircle, Download } from "lucide-react";
+import { toast } from "sonner";
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [snippets, setSnippets] = useState<Snippet[]>([]);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingSnippet, setEditingSnippet] = useState<Snippet | undefined>(
+    undefined
+  );
+  const [searchQuery, setSearchQuery] = useState("");
+  const [languageFilter, setLanguageFilter] = useState("all");
+  const [tab, setTab] = useState("all");
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  // Load snippets from localStorage on initial load
+  useEffect(() => {
+    const loadedSnippets = getSnippets();
+    console.log({ loadedSnippets });
+    setSnippets(loadedSnippets);
+  }, []);
+
+  // Create a filtered list of snippets based on search and language filter
+  const filteredSnippets = useMemo(() => {
+    let filtered = snippets;
+
+    if (searchQuery) {
+      filtered = searchSnippets(searchQuery);
+    } else if (languageFilter !== "all") {
+      filtered = filterSnippetsByLanguage(languageFilter);
+    }
+
+    // Sort by updatedAt date (newest first)
+    console.log({ filtered });
+    return [...filtered].sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
+  }, [snippets, searchQuery, languageFilter]);
+
+  const handleCreateSnippet = (snippet: Snippet) => {
+    addSnippet(snippet);
+    setSnippets(getSnippets());
+    setIsFormOpen(false);
+
+    toast("Snippet created", {
+      description: "Your code snippet has been saved.",
+    });
+  };
+
+  const handleUpdateSnippet = (snippet: Snippet) => {
+    updateSnippet(snippet);
+    setSnippets(getSnippets());
+    setEditingSnippet(undefined);
+    toast("Snippet updated", {
+      description: "Your code snippet has been updated.",
+    });
+  };
+
+  const handleDeleteSnippet = (id: string) => {
+    if (confirm("Are you sure you want to delete this snippet?")) {
+      deleteSnippet(id);
+      setSnippets(getSnippets());
+      toast("Snippet deleted", {
+        description: "Your code snippet has been removed.",
+      });
+    }
+  };
+
+  const handleEditSnippet = (snippet: Snippet) => {
+    setEditingSnippet(snippet);
+  };
+
+  const handleExport = () => {
+    const jsonData = exportSnippets();
+    const blob = new Blob([jsonData], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+
+    // Create a temporary link and trigger download
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "code-snippets.json";
+    document.body.appendChild(a);
+    a.click();
+
+    // Clean up
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast("Snippets exported", {
+      description: "Your snippets have been exported to a JSON file.",
+    });
+  };
+
+  // const handleImport = () => {
+  //   const input = document.createElement("input");
+  //   input.type = "file";
+  //   input.accept = ".json";
+
+  //   input.onchange = (e) => {
+  //     const file = (e.target as HTMLInputElement).files?.[0];
+  //     if (!file) return;
+
+  //     const reader = new FileReader();
+  //     reader.onload = (event) => {
+  //       const content = event.target?.result as string;
+  //       console.log({ content });
+  //       const success = importSnippets(content);
+
+  //       if (success) {
+  //         setSnippets(getSnippets());
+  //         toast("Snippets imported", {
+  //           description: "Your snippets have been imported successfully.",
+  //         });
+  //       } else {
+  //         toast("Import failed", {
+  //           description: "The file format is invalid.",
+  //           descriptionClassName: "destructive",
+  //         });
+  //       }
+  //     };
+
+  //     reader.readAsText(file);
+  //   };
+
+  //   input.click();
+  // };
+
+  return (
+    <div className="w-full container mx-auto py-6 max-w-7xl px-5">
+      <header className="mb-8 w-full">
+        <div className="flex flex-col sm:flex-row sm:justify-between items-baseline space-y-4 sm:space-y-0 w-full">
+          <h1 className="text-3xl font-bold w-full ">Code Snippet Library</h1>
+          <div className="flex gap-2 items-center w-full">
+            <Button
+              onClick={() => setIsFormOpen(true)}
+              className="sm:ml-auto md:w-fit"
+            >
+              <PlusCircle className="h-4 w-4 mr-2" />
+              Add Snippet
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleExport}
+              className="md:w-fit"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export
+            </Button>
+          </div>
         </div>
+      </header>
+
+      <main>
+        <Tabs defaultValue="all" value={tab} onValueChange={setTab}>
+          <TabsList>
+            <TabsTrigger value="all">All Snippets</TabsTrigger>
+            <TabsTrigger value="recent">Recent</TabsTrigger>
+          </TabsList>
+
+          <div className="mt-4 flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-3">
+            <div className="w-full sm:w-1/4">
+              <SearchBar query={searchQuery} onSearch={setSearchQuery} />
+            </div>
+            <div className="w-full sm:w-1/3">
+              <LanguageFilter
+                value={languageFilter}
+                onChange={setLanguageFilter}
+              />
+            </div>
+          </div>
+          <TabsContent value="all" className="mt-6">
+            <SnippetList
+              snippets={filteredSnippets}
+              onEdit={handleEditSnippet}
+              onDelete={handleDeleteSnippet}
+            />
+          </TabsContent>
+
+          <TabsContent value="recent" className="mt-6">
+            <SnippetList
+              snippets={filteredSnippets.slice(0, 6)}
+              onEdit={handleEditSnippet}
+              onDelete={handleDeleteSnippet}
+            />
+          </TabsContent>
+        </Tabs>
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+
+      {/* Create snippet dialog */}
+      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Create New Snippet</DialogTitle>
+          </DialogHeader>
+          <SnippetForm
+            onSubmit={handleCreateSnippet}
+            onCancel={() => setIsFormOpen(false)}
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit snippet dialog */}
+      <Dialog
+        open={!!editingSnippet}
+        onOpenChange={(open) => {
+          if (!open) setEditingSnippet(undefined);
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Snippet</DialogTitle>
+          </DialogHeader>
+          {editingSnippet && (
+            <SnippetForm
+              initialData={editingSnippet}
+              onSubmit={handleUpdateSnippet}
+              onCancel={() => setEditingSnippet(undefined)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

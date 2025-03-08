@@ -39,7 +39,6 @@ export default function Home() {
   // Load snippets from localStorage on initial load
   useEffect(() => {
     const loadedSnippets = getSnippets();
-    console.log({ loadedSnippets });
     setSnippets(loadedSnippets);
   }, []);
 
@@ -54,7 +53,6 @@ export default function Home() {
     }
 
     // Sort by updatedAt date (newest first)
-    console.log({ filtered });
     return [...filtered].sort(
       (a, b) =>
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()

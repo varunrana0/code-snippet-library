@@ -85,7 +85,6 @@ export const importSnippets = (jsonData: string): boolean => {
       const firstArray = Object.values(data).find((value) =>
         Array.isArray(value)
       );
-      console.log({ firstArray });
       if (Array.isArray(firstArray)) {
         snippets = firstArray as Snippet[];
       } else {
